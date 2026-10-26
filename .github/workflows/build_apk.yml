@@ -49,13 +49,11 @@ jobs:
 
       - name: 5. Génération automatique de l'ossature Android
         run: |
-          if [ ! -d "android" ]; then
-            echo "Création des fichiers de configuration natifs Android..."
-            flutter create . --platforms=android --project-name trouve_ton_parcours
-            sed -i 's/android:label=".*"/android:label="Trouve ton parcours"/' android/app/src/main/AndroidManifest.xml
-          else
-            echo "Dossier android déjà présent."
-          fi
+          echo "Nettoyage et recréation d'une ossature Android propre..."
+          rm -rf android
+          flutter create . --platforms=android --project-name trouve_ton_parcours
+          sed -i 's/android:label=".*"/android:label="Trouve ton parcours"/' android/app/src/main/AndroidManifest.xml
+          
 
       - name: 6. Installation des dépendances
         run: flutter pub get
