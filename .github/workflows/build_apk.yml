@@ -3,7 +3,7 @@ name: Build Flutter APK
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch: # Permet de le lancer manuellement depuis l'onglet Actions de GitHub
+  workflow_dispatch:
 
 jobs:
   build:
@@ -13,14 +13,23 @@ jobs:
       - name: 1. Récupération du dépôt
         uses: actions/checkout@v4
 
-      - name: 2. Décompression automatique du ZIP (si présent)
+      - name: 2. Décompression intelligente du ZIP
         run: |
-          # Cherche un fichier .zip à la racine et l'extrait
           if ls *.zip 1> /dev/null 2>&1; then
             echo "Fichier ZIP détecté, extraction en cours..."
-            unzip -q *.zip -d temp_folder
-            # Déplace le contenu extrait à la racine du workspace
-            cp -r temp_folder/* ./ || cp -r temp_folder/app-velo/* ./ || true
+            mkdir -p temp_extract
+            unzip -q *.zip -d temp_extract
+            
+            PUBSPEC_PATH=$(find temp_extract -name "pubspec.yaml" | head -n 1)
+            if [ -n "$PUBSPEC_PATH" ]; then
+              PROJECT_DIR=$(dirname "$PUBSPEC_PATH")
+              echo "Projet détecté dans : $PROJECT_DIR"
+              cp -r "$PROJECT_DIR"/* ./
+            else
+              echo "Erreur : pubspec.yaml introuvable dans l'archive ZIP."
+              exit 1
+            fi
+            rm -rf temp_extract
           else
             echo "Pas de ZIP détecté, utilisation des fichiers standards."
           fi
@@ -34,7 +43,7 @@ jobs:
       - name: 4. Configuration de Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.x' # Version stable de Flutter
+          flutter-version: '3.19.x'
           channel: 'stable'
           cache: true
 
@@ -49,4 +58,3 @@ jobs:
         with:
           name: app-velo-release
           path: build/app/outputs/flutter-apk/app-release.apk
-          
