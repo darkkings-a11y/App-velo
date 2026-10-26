@@ -1,1 +1,52 @@
+name: Build Flutter APK
 
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch: # Permet de le lancer manuellement depuis l'onglet Actions de GitHub
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Récupération du dépôt
+        uses: actions/checkout@v4
+
+      - name: 2. Décompression automatique du ZIP (si présent)
+        run: |
+          # Cherche un fichier .zip à la racine et l'extrait
+          if ls *.zip 1> /dev/null 2>&1; then
+            echo "Fichier ZIP détecté, extraction en cours..."
+            unzip -q *.zip -d temp_folder
+            # Déplace le contenu extrait à la racine du workspace
+            cp -r temp_folder/* ./ || cp -r temp_folder/app-velo/* ./ || true
+          else
+            echo "Pas de ZIP détecté, utilisation des fichiers standards."
+          fi
+
+      - name: 3. Configuration de Java (requis pour Android)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: 4. Configuration de Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.x' # Version stable de Flutter
+          channel: 'stable'
+          cache: true
+
+      - name: 5. Installation des dépendances
+        run: flutter pub get
+
+      - name: 6. Construction de l'APK (Release)
+        run: flutter build apk --release
+
+      - name: 7. Sauvegarde de l'APK (Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-velo-release
+          path: build/app/outputs/flutter-apk/app-release.apk
+          
