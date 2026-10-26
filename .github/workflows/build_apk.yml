@@ -47,13 +47,22 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: 5. Installation des dépendances
+      - name: 5. Génération automatique de l'ossature Android
+        run: |
+          if [ ! -d "android" ]; then
+            echo "Création des fichiers de configuration natifs Android..."
+            flutter create . --platforms=android --project-name app_velo
+          else
+            echo "Dossier android déjà présent."
+          fi
+
+      - name: 6. Installation des dépendances
         run: flutter pub get
 
-      - name: 6. Construction de l'APK (Release)
+      - name: 7. Construction de l'APK (Release)
         run: flutter build apk --release
 
-      - name: 7. Sauvegarde de l'APK (Artifact)
+      - name: 8. Sauvegarde de l'APK (Artifact)
         uses: actions/upload-artifact@v4
         with:
           name: app-velo-release
