@@ -43,19 +43,18 @@ jobs:
       - name: 4. Configuration de Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.x'
+          flutter-version: '3.27.4'
           channel: 'stable'
           cache: true
 
       - name: 5. Génération automatique de l'ossature Android
         run: |
-          echo "Nettoyage et recréation d'une ossature Android propre..."
           rm -rf android
           flutter create . --platforms=android --project-name trouve_ton_parcours
           sed -i 's/android:label=".*"/android:label="Trouve ton parcours"/' android/app/src/main/AndroidManifest.xml
-          sed -i 's/version "1.7.1"/version "1.9.0"/g' android/settings.gradle
-          sed -i 's/version "1.8.22"/version "1.9.0"/g' android/settings.gradle
-          
+          sed -i -E 's/(org\.jetbrains\.kotlin\.android" version ")[0-9.]+(")/\11.9.22\2/' android/settings.gradle
+          grep -n "kotlin" android/settings.gradle android/build.gradle || true
+     
       - name: 6. Installation des dépendances
         run: flutter pub get
 
