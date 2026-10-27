@@ -1,118 +1,112 @@
 name: Build Flutter APK
 
 on:
- push:
-  branches: [main, master]
- workflow_dispatch:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
 
 jobs:
- build:
- runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-latest
 
-  steps:
-   - name: 1. Récupération du dépôt
-     uses: actions/checkout@v4
+    steps:
+      - name: 1. Récupération du dépôt
+        uses: actions/checkout@v4
 
-   - name: 2. Installation de unzip
-     run: sudo apt-get update && sudo apt-get install -y unzip
+      - name: 2. Installation de unzip
+        run: sudo apt-get update && sudo apt-get install -y unzip
 
-   - name: 3. Décompression du projet Flutter
-     shell: bash
-     run: |
-      set -e
+      - name: 3. Décompression du projet Flutter
+        shell: bash
+        run: |
+          set -e
+          shopt -s nullglob
+          zips=( *.zip )
 
-      shopt -s nullglob
-      zips=( *.zip )
+          if [ ${#zips[@]} -gt 0 ]; then
+            echo "Archive ZIP détectée : ${zips[0]}"
+            mkdir -p temp_extract
+            unzip -q "${zips[0]}" -d temp_extract
 
-      if [ ${#zips[@]} -gt 0 ]; then
-        echo "Archive ZIP détectée : ${zips[0]}"
-        mkdir -p temp_extract
-        unzip -q "${zips[0]}" -d temp_extract
+            PUBSPEC_PATH=$(find temp_extract -name pubspec.yaml -type f | head -n 1)
 
-        PUBSPEC_PATH=$(find temp_extract -name pubspec.yaml -type f | head -n 1)
+            if [ -z "$PUBSPEC_PATH" ]; then
+              echo "ERREUR : pubspec.yaml introuvable dans le ZIP."
+              exit 1
+            fi
 
-        if [ -z "$PUBSPEC_PATH" ]; then
-          echo "ERREUR : pubspec.yaml introuvable dans le ZIP."
-          exit 1
-        fi
+            PROJECT_DIR=$(dirname "$PUBSPEC_PATH")
+            echo "Projet Flutter trouvé : $PROJECT_DIR"
+            cp -r "$PROJECT_DIR"/. ./
+            rm -rf temp_extract
+          else
+            echo "Aucun ZIP : utilisation du projet présent dans le dépôt."
+          fi
 
-        PROJECT_DIR=$(dirname "$PUBSPEC_PATH")
-        echo "Projet Flutter trouvé : $PROJECT_DIR"
+          if [ ! -f pubspec.yaml ]; then
+            echo "ERREUR : pubspec.yaml absent à la racine."
+            exit 1
+          fi
 
-        cp -r "$PROJECT_DIR"/. ./
+      - name: 4. Configuration de Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
 
-        rm -rf temp_extract
-      else
-        echo "Aucun ZIP : utilisation du projet présent dans le dépôt."
-      fi
+      - name: 5. Configuration de Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.4'
+          channel: stable
+          cache: true
 
-      if [ ! -f pubspec.yaml ]; then
-        echo "ERREUR : pubspec.yaml absent à la racine."
-        exit 1
-      fi
+      - name: 6. Génération des fichiers Android
+        run: |
+          set -e
+          flutter create . \
+            --platforms=android \
+            --project-name=trouve_ton_parcours \
+            --org=com.trouvetonparcours
 
-   - name: 4. Configuration de Java
-     uses: actions/setup-java@v4
-     with:
-      distribution: zulu
-      java-version: '17'
+          test -f android/app/src/main/AndroidManifest.xml
 
-   - name: 5. Configuration de Flutter
-     uses: subosito/flutter-action@v2
-     with:
-      flutter-version: '3.27.4'
-      channel: stable
-      cache: true
+      - name: 7. Configuration des permissions Android
+        shell: bash
+        run: |
+          set -e
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
 
-   - name: 6. Génération des fichiers Android
-     run: |
-      set -e
+          add_permission() {
+            local permission="$1"
+            if ! grep -q "$permission" "$MANIFEST"; then
+              sed -i "/<application/i\\    <uses-permission android:name=\"$permission\" />" "$MANIFEST"
+            fi
+          }
 
-      flutter create . \
-        --platforms=android \
-        --project-name=trouve_ton_parcours \
-        --org=com.trouvetonparcours
+          add_permission "android.permission.INTERNET"
+          add_permission "android.permission.ACCESS_FINE_LOCATION"
+          add_permission "android.permission.ACCESS_COARSE_LOCATION"
 
-      test -f android/app/src/main/AndroidManifest.xml
+          echo "Permissions configurées :"
+          grep "uses-permission" "$MANIFEST" || true
 
-   - name: 7. Configuration des permissions Android
-     shell: bash
-     run: |
-      set -e
+      - name: 8. Vérification de Flutter
+        run: flutter doctor -v
 
-      MANIFEST="android/app/src/main/AndroidManifest.xml"
+      - name: 9. Installation des dépendances
+        run: flutter pub get
 
-      add_permission() {
-        local permission="$1"
+      - name: 10. Vérification du code Dart
+        run: flutter analyze
 
-        if ! grep -q "$permission" "$MANIFEST"; then
-          sed -i "/<application/i\\    <uses-permission android:name=\"$permission\" />" "$MANIFEST"
-        fi
-      }
+      - name: 11. Construction de l'APK Release
+        run: flutter build apk --release
 
-      add_permission "android.permission.INTERNET"
-      add_permission "android.permission.ACCESS_FINE_LOCATION"
-      add_permission "android.permission.ACCESS_COARSE_LOCATION"
-
-      echo "Permissions configurées :"
-      grep "uses-permission" "$MANIFEST" || true
-
-   - name: 8. Vérification de Flutter
-     run: flutter doctor -v
-
-   - name: 9. Installation des dépendances
-     run: flutter pub get
-
-   - name: 10. Vérification du code Dart
-     run: flutter analyze
-
-   - name: 11. Construction de l'APK Release
-     run: flutter build apk --release
-
-   - name: 12. Publication de l'APK
-     uses: actions/upload-artifact@v4
-     with:
-      name: trouve-ton-parcours-release
-      path: build/app/outputs/flutter-apk/app-release.apk
-      if-no-files-found: error
-      retention-days: 14
+      - name: 12. Publication de l'APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: trouve-ton-parcours-release
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
