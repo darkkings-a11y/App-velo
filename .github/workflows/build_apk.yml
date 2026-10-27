@@ -92,6 +92,15 @@ jobs:
           fi
           tail -n 12 android/build.gradle* || true
 
+      - name: 5c. minSdk 23 (exigé par play-services-base, utilisé par geolocator)
+        run: |
+          for f in android/app/build.gradle android/app/build.gradle.kts; do
+            if [ -f "$f" ]; then
+              sed -i 's/flutter\.minSdkVersion/23/' "$f"
+              grep -n "minSdk" "$f" || true
+            fi
+          done
+
       - name: 6. Installation des dépendances
         run: flutter pub get
 
