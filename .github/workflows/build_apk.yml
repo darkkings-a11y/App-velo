@@ -63,6 +63,35 @@ jobs:
           done
           grep -n "kotlin" android/settings.gradle android/settings.gradle.kts android/build.gradle 2>/dev/null || true
 
+      - name: 5b. Bloquer androidx.core à 1.16.0 (la 1.17 exige AGP 8.9.1 et compileSdk 36)
+        run: |
+          if [ -f android/build.gradle ]; then
+            cat >> android/build.gradle <<'EOF'
+
+          allprojects {
+              configurations.all {
+                  resolutionStrategy {
+                      force 'androidx.core:core:1.16.0'
+                      force 'androidx.core:core-ktx:1.16.0'
+                  }
+              }
+          }
+          EOF
+          elif [ -f android/build.gradle.kts ]; then
+            cat >> android/build.gradle.kts <<'EOF'
+
+          allprojects {
+              configurations.all {
+                  resolutionStrategy {
+                      force("androidx.core:core:1.16.0")
+                      force("androidx.core:core-ktx:1.16.0")
+                  }
+              }
+          }
+          EOF
+          fi
+          tail -n 12 android/build.gradle* || true
+
       - name: 6. Installation des dépendances
         run: flutter pub get
 
