@@ -19,7 +19,7 @@ jobs:
             echo "Fichier ZIP détecté, extraction en cours..."
             mkdir -p temp_extract
             unzip -q *.zip -d temp_extract
-            
+
             PUBSPEC_PATH=$(find temp_extract -name "pubspec.yaml" | head -n 1)
             if [ -n "$PUBSPEC_PATH" ]; then
               PROJECT_DIR=$(dirname "$PUBSPEC_PATH")
@@ -43,7 +43,8 @@ jobs:
       - name: 4. Configuration de Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.27.4'
+          # 3.29.3 embarque Dart 3.7 (requis par maplibre_gl 0.26)
+          flutter-version: '3.29.3'
           channel: 'stable'
           cache: true
 
@@ -54,16 +55,24 @@ jobs:
           sed -i 's/android:label=".*"/android:label="Trouve ton parcours"/' android/app/src/main/AndroidManifest.xml
           sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>\n    <application#' android/app/src/main/AndroidManifest.xml
           grep -n "uses-permission" android/app/src/main/AndroidManifest.xml
-          sed -i -E 's/(org\.jetbrains\.kotlin\.android" version ")[0-9.]+(")/\12.1.0\2/' android/settings.gradle
-          grep -n "kotlin" android/settings.gradle android/build.gradle || true
+          # Kotlin >= 2.1.0 (fichiers Groovy ou Kotlin DSL selon la version de Flutter)
+          for f in android/settings.gradle android/settings.gradle.kts; do
+            if [ -f "$f" ]; then
+              sed -i -E 's/(org\.jetbrains\.kotlin\.android"\)? version ")[0-9.]+(")/\12.1.0\2/' "$f"
+            fi
+          done
+          grep -n "kotlin" android/settings.gradle android/settings.gradle.kts android/build.gradle 2>/dev/null || true
 
       - name: 6. Installation des dépendances
         run: flutter pub get
 
-      - name: 7. Construction de l'APK (Release)
+      - name: 7. Analyse du code (affiche les erreurs Dart clairement)
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings || true
+
+      - name: 8. Construction de l'APK (Release)
         run: flutter build apk --release
 
-      - name: 8. Sauvegarde de l'APK (Artifact)
+      - name: 9. Sauvegarde de l'APK (Artifact)
         uses: actions/upload-artifact@v4
         with:
           name: trouve-ton-parcours-release
